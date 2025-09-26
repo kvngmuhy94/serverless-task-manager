@@ -1,0 +1,15 @@
+# Node modules
+node_modules/
+build/
+
+# Python
+_pycache_/
+*.pyc
+
+# AWS
+.aws/
+.env
+
+# Terraform
+*.tfstate
+*.tfstate.backup
