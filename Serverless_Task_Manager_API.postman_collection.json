@@ -1,0 +1,559 @@
+{
+  "info": {
+    "name": "Serverless Task Manager API",
+    "description": "Complete API collection for testing the Serverless Task Manager with Cognito authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "serverless-task-manager-api",
+    "version": {
+      "major": 1,
+      "minor": 0,
+      "patch": 0
+    }
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://0umwc8y8s9.execute-api.us-east-1.amazonaws.com/prod",
+      "type": "string",
+      "description": "API Gateway base URL"
+    },
+    {
+      "key": "cognito_user_pool_id",
+      "value": "us-east-1_5WE3H8aiJ",
+      "type": "string",
+      "description": "Cognito User Pool ID"
+    },
+    {
+      "key": "cognito_client_id",
+      "value": "1i3ibn7l1ufqrhjv5f84c1vjm5",
+      "type": "string",
+      "description": "Cognito App Client ID"
+    },
+    {
+      "key": "cognito_domain",
+      "value": "serverless-task-manager-cba397f5c4e3a1f8.auth.us-east-1.amazoncognito.com",
+      "type": "string",
+      "description": "Cognito Hosted UI domain"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT token from Cognito authentication (set this manually or via auth request)"
+    },
+    {
+      "key": "test_task_id",
+      "value": "",
+      "type": "string",
+      "description": "Task ID for testing update/delete operations"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Get Cognito Token (AWS CLI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/x-amz-json-1.1"
+              },
+              {
+                "key": "X-Amz-Target",
+                "value": "AWSCognitoIdentityProviderService.InitiateAuth"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"AuthFlow\": \"USER_PASSWORD_AUTH\",\n  \"ClientId\": \"{{cognito_client_id}}\",\n  \"AuthParameters\": {\n    \"USERNAME\": \"testuser\",\n    \"PASSWORD\": \"MySecurePassword123!\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://cognito-idp.us-east-1.amazonaws.com/",
+              "protocol": "https",
+              "host": ["cognito-idp", "us-east-1", "amazonaws", "com"],
+              "path": [""]
+            },
+            "description": "Get JWT token directly from Cognito service"
+          },
+          "response": []
+        },
+        {
+          "name": "Cognito Hosted UI Login",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://{{cognito_domain}}/login?client_id={{cognito_client_id}}&response_type=code&scope=email+openid&redirect_uri=https://localhost:3000/callback",
+              "protocol": "https",
+              "host": ["{{cognito_domain}}"],
+              "path": ["login"],
+              "query": [
+                {
+                  "key": "client_id",
+                  "value": "{{cognito_client_id}}"
+                },
+                {
+                  "key": "response_type",
+                  "value": "code"
+                },
+                {
+                  "key": "scope",
+                  "value": "email+openid"
+                },
+                {
+                  "key": "redirect_uri",
+                  "value": "https://localhost:3000/callback"
+                }
+              ]
+            },
+            "description": "Open Cognito Hosted UI for browser-based authentication"
+          },
+          "response": []
+        }
+      ],
+      "description": "Authentication endpoints to get JWT tokens"
+    },
+    {
+      "name": "Tasks",
+      "item": [
+        {
+          "name": "Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Store task ID for other tests",
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.task && response.task.taskId) {",
+                  "        pm.collectionVariables.set('test_task_id', response.task.taskId);",
+                  "        console.log('Stored task ID:', response.task.taskId);",
+                  "    }",
+                  "}",
+                  "",
+                  "// Test assertions",
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Response has task object', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('task');",
+                  "    pm.expect(jsonData.task).to.have.property('taskId');",
+                  "    pm.expect(jsonData.task).to.have.property('userId');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Task from Postman\",\n  \"description\": \"This is a test task created via Postman to verify API functionality\",\n  \"priority\": \"high\",\n  \"status\": \"pending\",\n  \"dueDate\": \"2025-12-31T23:59:59Z\",\n  \"tags\": [\"test\", \"postman\", \"api\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["tasks"]
+            },
+            "description": "Create a new task for the authenticated user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Tasks",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has tasks array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('tasks');",
+                  "    pm.expect(jsonData.tasks).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('All tasks belong to authenticated user', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.tasks && jsonData.tasks.length > 0) {",
+                  "        jsonData.tasks.forEach(task => {",
+                  "            pm.expect(task).to.have.property('userId');",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["tasks"]
+            },
+            "description": "Get all tasks for the authenticated user"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Tasks with Filters",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has tasks array', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('tasks');",
+                  "    pm.expect(jsonData.tasks).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('Filtered results match criteria', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    if (jsonData.tasks && jsonData.tasks.length > 0) {",
+                  "        jsonData.tasks.forEach(task => {",
+                  "            pm.expect(task.status).to.equal('pending');",
+                  "            pm.expect(task.priority).to.equal('high');",
+                  "        });",
+                  "    }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks?status=pending&priority=high&limit=10&sortBy=createdAt&sortOrder=desc",
+              "host": ["{{base_url}}"],
+              "path": ["tasks"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "description": "Filter by task status"
+                },
+                {
+                  "key": "priority",
+                  "value": "high",
+                  "description": "Filter by priority level"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Maximum number of results"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "createdAt",
+                  "description": "Sort field"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "desc",
+                  "description": "Sort order (asc/desc)"
+                }
+              ]
+            },
+            "description": "Get tasks with filtering, sorting, and pagination"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response has updated task', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('task');",
+                  "    pm.expect(jsonData.task.title).to.equal('Updated Test Task');",
+                  "    pm.expect(jsonData.task.status).to.equal('in-progress');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Test Task\",\n  \"description\": \"This task has been updated via Postman\",\n  \"status\": \"in-progress\",\n  \"priority\": \"medium\",\n  \"tags\": [\"updated\", \"postman\", \"test\"]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tasks/{{test_task_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["tasks", "{{test_task_id}}"]
+            },
+            "description": "Update an existing task (uses task ID from Create Task test)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Task (Soft)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response confirms soft deletion', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData.deletionType).to.equal('soft');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks/{{test_task_id}}?soft=true",
+              "host": ["{{base_url}}"],
+              "path": ["tasks", "{{test_task_id}}"],
+              "query": [
+                {
+                  "key": "soft",
+                  "value": "true",
+                  "description": "Perform soft delete (mark as deleted)"
+                }
+              ]
+            },
+            "description": "Soft delete a task (mark as deleted but keep in database)"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Task (Hard)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response confirms hard deletion', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData.deletionType).to.equal('hard');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks/{{test_task_id}}?soft=false",
+              "host": ["{{base_url}}"],
+              "path": ["tasks", "{{test_task_id}}"],
+              "query": [
+                {
+                  "key": "soft",
+                  "value": "false",
+                  "description": "Perform hard delete (permanently remove from database)"
+                }
+              ]
+            },
+            "description": "Hard delete a task (permanently remove from database)"
+          },
+          "response": []
+        }
+      ],
+      "description": "CRUD operations for task management"
+    },
+    {
+      "name": "Error Testing",
+      "item": [
+        {
+          "name": "Unauthorized Request (No Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('message');",
+                  "    pm.expect(jsonData.message).to.include('Unauthorized');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["tasks"]
+            },
+            "description": "Test API behavior without authentication token"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid Task ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 404 Not Found', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('Response contains error message', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/tasks/invalid-task-id-12345",
+              "host": ["{{base_url}}"],
+              "path": ["tasks", "invalid-task-id-12345"]
+            },
+            "description": "Test API behavior with invalid task ID"
+          },
+          "response": []
+        },
+        {
+          "name": "Invalid JSON Body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('Response contains validation error', function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('error');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"invalidField\": \"test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/tasks",
+              "host": ["{{base_url}}"],
+              "path": ["tasks"]
+            },
+            "description": "Test API behavior with invalid request body"
+          },
+          "response": []
+        }
+      ],
+      "description": "Test error handling and edge cases"
+    }
+  ]
+}
