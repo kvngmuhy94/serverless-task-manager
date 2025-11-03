@@ -1,0 +1,103 @@
+name: Deploy Serverless Task Manager
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: serverless-task-managerfrontend
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: frontend/client/package-lock.json
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Install dependencies
+      run: |
+        cd frontend/client
+        npm ci
+
+    - name: Run tests
+      run: |
+        cd frontend/client
+        npm test -- --coverage --watchAll=false
+
+    - name: Build React app
+      run: |
+        cd frontend/client
+        npm run build
+
+    - name: Deploy to S3
+      run: |
+        cd frontend/client
+        aws s3 sync build/ s3://${{ env.S3_BUCKET }} --delete --cache-control "max-age=86400"
+
+    - name: Invalidate CloudFront cache
+      run: |
+        DISTRIBUTION_ID=$(aws cloudfront list-distributions \
+          --query "DistributionList.Items[?Origins.Items[?DomainName=='${{ env.S3_BUCKET }}.s3-website-us-east-1.amazonaws.com']].Id" \
+          --output text)
+        if [ ! -z "$DISTRIBUTION_ID" ]; then
+          echo "Invalidating CloudFront distribution: $DISTRIBUTION_ID"
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+        else
+          echo "No CloudFront distribution found"
+        fi
+
+    - name: Deploy backend functions (if changed)
+      run: |
+        if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "backend/"; then
+          echo "Backend changes detected, deploying functions..."
+          # Add your Lambda deployment logic here
+          # Example: sam deploy or terraform apply
+        else
+          echo "No backend changes detected"
+        fi
+
+    - name: Post-deployment tests
+      run: |
+        echo "Running post-deployment tests..."
+        # Test S3 website
+        curl -f http://${{ env.S3_BUCKET }}.s3-website-us-east-1.amazonaws.com || exit 1
+        
+        # Test CloudFront if exists
+        DISTRIBUTION_DOMAIN=$(aws cloudfront list-distributions \
+          --query "DistributionList.Items[?Origins.Items[?DomainName=='${{ env.S3_BUCKET }}.s3-website-us-east-1.amazonaws.com']].DomainName" \
+          --output text)
+        if [ ! -z "$DISTRIBUTION_DOMAIN" ]; then
+          curl -f https://$DISTRIBUTION_DOMAIN || exit 1
+        fi
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deployment successful!"
+          echo "🌐 S3 URL: http://${{ env.S3_BUCKET }}.s3-website-us-east-1.amazonaws.com"
+        else
+          echo "❌ Deployment failed!"
+        fi
